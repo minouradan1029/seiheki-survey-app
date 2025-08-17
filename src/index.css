@@ -5,17 +5,26 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 全体の背景とフォント設定 */
-body {
-  /* 明るいピンクがかった背景色に変更 */
-  background-color: #fff1f2; /* bg-rose-50 */
-  /* 基本の文字色を濃いグレーに変更 */
-  color: #1e293b; /* text-slate-800 */
-  font-family: 'Inter', sans-serif;
-  overflow-x: hidden;
+:root {
+  --bg-color: #fff1f2; /* bg-rose-50 */
+  --text-color: #1f2937; /* text-gray-800 */
+  --primary-color: #ec4899; /* text-pink-500 */
+  --secondary-color: #f97316; /* text-orange-500 */
+  --accent-color: #8b5cf6; /* text-violet-500 */
 }
 
-/* 背景のエフェクトをより明るく、ポップな色合いに変更 */
+/* 全体の背景とフォント設定 */
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  /* 日本語表示がより自然になるように Noto Sans JP を追加 */
+  font-family: 'Inter', 'Noto Sans JP', sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 背景のエフェクトをより滑らかに、控えめに変更 */
 body::before {
   content: '';
   position: fixed;
@@ -23,21 +32,20 @@ body::before {
   left: -50%;
   width: 200%;
   height: 200%;
-  background-image: 
-    /* 色をピンク、オレンジ、紫系の鮮やかなものに変更 */
-    radial-gradient(at 20% 20%, #f9a8d4 0px, transparent 50%),
-    radial-gradient(at 80% 20%, #f59e0b 0px, transparent 50%),
-    radial-gradient(at 50% 80%, #c4b5fd 0px, transparent 50%);
-  animation: gradient-animation 15s ease infinite;
+  background-image:
+    /* 色を少し柔らかく調整 */
+    radial-gradient(at 20% 20%, hsla(330, 80%, 85%, 1) 0px, transparent 50%),
+    radial-gradient(at 80% 20%, hsla(40, 95%, 80%, 1) 0px, transparent 50%),
+    radial-gradient(at 50% 80%, hsla(260, 90%, 85%, 1) 0px, transparent 50%);
+  animation: gradient-animation 25s ease infinite; /* アニメーションをゆっくりに */
   z-index: -1;
-  /* 透明度を上げて、エフェクトをより目立たせる */
-  opacity: 0.3;
+  opacity: 0.25; /* 透明度を調整して、より控えめに */
 }
 
 @keyframes gradient-animation {
   0% { transform: translate(0, 0) rotate(0deg); }
-  25% { transform: translate(10vw, -10vh) rotate(30deg); }
-  50% { transform: translate(-10vw, 10vh) rotate(-30deg); }
-  75% { transform: translate(5vw, 5vh) rotate(15deg); }
+  25% { transform: translate(10vw, -10vh) rotate(10deg); }
+  50% { transform: translate(-10vw, 10vh) rotate(-10deg); }
+  75% { transform: translate(5vw, 5vh) rotate(5deg); }
   100% { transform: translate(0, 0) rotate(0deg); }
 }
