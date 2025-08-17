@@ -1,3 +1,43 @@
+/* src/index.css */
+@import './animations.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* 全体の背景とフォント設定 */
+body {
+  /* 明るいピンクがかった背景色に変更 */
+  background-color: #fff1f2; /* bg-rose-50 */
+  /* 基本の文字色を濃いグレーに変更 */
+  color: #1e293b; /* text-slate-800 */
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+}
+
+/* 背景のエフェクトをより明るく、ポップな色合いに変更 */
+body::before {
+  content: '';
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background-image: 
+    /* 色をピンク、オレンジ、紫系の鮮やかなものに変更 */
+    radial-gradient(at 20% 20%, #f9a8d4 0px, transparent 50%),
+    radial-gradient(at 80% 20%, #f59e0b 0px, transparent 50%),
+    radial-gradient(at 50% 80%, #c4b5fd 0px, transparent 50%);
+  animation: gradient-animation 15s ease infinite;
+  z-index: -1;
+  /* 透明度を上げて、エフェクトをより目立たせる */
+  opacity: 0.3;
+}
+
+@keyframes gradient-animation {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(10vw, -10vh) rotate(30deg); }
+  50% { transform: translate(-10vw, 10vh) rotate(-30deg); }
+  75% { transform: translate(5vw, 5vh) rotate(15deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}

@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-// firebase.js から auth と authStateListener をインポート
 import { db, auth, authStateListener } from '../firebase.js';
-// setDoc, doc, getDoc をインポート
 import { collection, getDocs, query, setDoc, doc, getDoc } from "firebase/firestore";
 
 import SurveyForm from './SurveyForm.jsx';
@@ -11,13 +9,15 @@ import ResultsView from './ResultsView.jsx';
 export default function App() {
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
-  const [isLoading, setIsLoading] = useState(true);
+  
+  const [isQuestionsLoading, setIsQuestionsLoading] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
   const [view, setView] = useState('form');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [results, setResults] = useState(null);
   const [isResultsLoading, setIsResultsLoading] = useState(false);
   
-  // 認証ユーザーと回答済みかの状態を管理
   const [user, setUser] = useState(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
@@ -27,11 +27,12 @@ export default function App() {
       .then(response => response.json())
       .then(data => {
         setQuestions(data);
-        // 認証状態のチェックが終わるまでローディングを継続
       })
       .catch(error => {
         console.error('質問データの読み込みに失敗しました:', error);
-        setIsLoading(false);
+      })
+      .finally(() => {
+        setIsQuestionsLoading(false);
       });
   }, []);
 
@@ -40,20 +41,17 @@ export default function App() {
     const unsubscribe = authStateListener(async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        // このユーザーが既に回答済みか確認
         const docRef = doc(db, "answers", currentUser.uid);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setHasSubmitted(true);
-          // ユーザー自身の回答を読み込む
           setAnswers(docSnap.data().answers);
-          setView('submitted'); // 回答済みの場合はSubmittedViewを表示
+          setView('submitted');
         }
       } else {
         setUser(null);
       }
-      // 認証チェックと質問読み込みが終わったらローディング完了
-      setIsLoading(false);
+      setIsAuthLoading(false);
     });
     return () => unsubscribe(); // クリーンアップ
   }, []);
@@ -68,15 +66,15 @@ export default function App() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    // ユーザーがいない、または回答済みの場合は送信しない
-    if (!user || hasSubmitted) return;
+    if (!user || hasSubmitted) {
+      console.warn("送信がブロックされました。理由:", { user: !!user, hasSubmitted });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      // ドキュメントIDとしてユーザーの匿名UIDを使用
       await setDoc(doc(db, "answers", user.uid), {
         answers: answers,
-        // submittedAt: new Date(), // ★特定につながる可能性があるため削除
       });
       setHasSubmitted(true);
       setView('submitted');
@@ -159,15 +157,30 @@ export default function App() {
     }
   };
 
-  if (isLoading) {
+  // 【追加】診断をリセットして最初からやり直すための関数
+  const handleReset = () => {
+    setAnswers({});
+    setHasSubmitted(false);
+    setResults(null);
+    setView('form');
+  };
+
+  if (isQuestionsLoading || isAuthLoading) {
     return (
-      <div className="bg-slate-900 min-h-screen flex items-center justify-center text-white">
-        データを読み込んでいます...
+      <div className="min-h-screen flex items-center justify-center text-slate-700">
+        ちょっと待ってね、準備中...
       </div>
     );
   }
   
-  // SurveyFormにhasSubmittedプロパティを渡す
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-slate-700 text-center p-4">
+        あれれ、うまく接続できなかったみたい。<br/>もう一回ページを読み込んでみてくれる？
+      </div>
+    );
+  }
+
   if (view === 'form' && !hasSubmitted) {
      return <SurveyForm 
       questions={questions}
@@ -184,9 +197,9 @@ export default function App() {
       isResultsLoading={isResultsLoading}
       questions={questions}
       answers={answers}
+      handleReset={handleReset} // 【追加】リセット関数を渡す
     />;
   }
 
-  // submitted or form (when hasSubmitted is true)
   return <SubmittedView showResults={showResults} />;
 }
