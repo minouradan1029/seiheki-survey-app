@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase.js';
-import { collection, addDoc, getDocs, query } from "firebase/firestore";
+// firebase.js から auth と authStateListener をインポート
+import { db, auth, authStateListener } from '../firebase.js';
+// setDoc, doc, getDoc をインポート
+import { collection, getDocs, query, setDoc, doc, getDoc } from "firebase/firestore";
 
 import SurveyForm from './SurveyForm.jsx';
 import SubmittedView from './SubmittedView.jsx';
@@ -14,19 +16,48 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [results, setResults] = useState(null);
   const [isResultsLoading, setIsResultsLoading] = useState(false);
+  
+  // 認証ユーザーと回答済みかの状態を管理
+  const [user, setUser] = useState(null);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
+  // 質問データの読み込み
   useEffect(() => {
     fetch('/questions.json')
       .then(response => response.json())
       .then(data => {
         setQuestions(data);
-        setIsLoading(false);
+        // 認証状態のチェックが終わるまでローディングを継続
       })
       .catch(error => {
         console.error('質問データの読み込みに失敗しました:', error);
         setIsLoading(false);
       });
   }, []);
+
+  // 認証状態の監視
+  useEffect(() => {
+    const unsubscribe = authStateListener(async (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        // このユーザーが既に回答済みか確認
+        const docRef = doc(db, "answers", currentUser.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setHasSubmitted(true);
+          // ユーザー自身の回答を読み込む
+          setAnswers(docSnap.data().answers);
+          setView('submitted'); // 回答済みの場合はSubmittedViewを表示
+        }
+      } else {
+        setUser(null);
+      }
+      // 認証チェックと質問読み込みが終わったらローディング完了
+      setIsLoading(false);
+    });
+    return () => unsubscribe(); // クリーンアップ
+  }, []);
+
 
   const handleOptionChange = (questionId, option) => {
     setAnswers(prevAnswers => ({
@@ -37,12 +68,17 @@ export default function App() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    // ユーザーがいない、または回答済みの場合は送信しない
+    if (!user || hasSubmitted) return;
+
     setIsSubmitting(true);
     try {
-      await addDoc(collection(db, "answers"), {
+      // ドキュメントIDとしてユーザーの匿名UIDを使用
+      await setDoc(doc(db, "answers", user.uid), {
         answers: answers,
-        submittedAt: new Date(),
+        // submittedAt: new Date(), // ★特定につながる可能性があるため削除
       });
+      setHasSubmitted(true);
       setView('submitted');
     } catch (e) {
       console.error("データベースへの保存中にエラーが発生しました: ", e);
@@ -62,7 +98,6 @@ export default function App() {
       const allAnswerSets = [];
       querySnapshot.forEach(doc => allAnswerSets.push(doc.data().answers));
 
-      // 1. 全回答の選択肢ごとの数を集計
       const resultsSummary = {};
       allAnswerSets.forEach(singleAnswerSet => {
         for (const questionId in singleAnswerSet) {
@@ -73,7 +108,6 @@ export default function App() {
         }
       });
 
-      // 2. 各ユーザーの「メジャー度」スコアを計算する関数
       const calculateMajorityScore = (userAnswers) => {
         let totalAffinity = 0;
         const questionIds = Object.keys(userAnswers);
@@ -86,18 +120,16 @@ export default function App() {
 
           if (questionResults && questionResults[userAnswer] && totalVotesForQuestion > 0) {
             const percentage = (questionResults[userAnswer] / totalVotesForQuestion) * 100;
-            totalAffinity += percentage; // 多数派の回答ほど高い値が加算される
+            totalAffinity += percentage;
           }
         });
         return totalAffinity / questionIds.length;
       };
 
-      // 3. 全ユーザーのスコアを計算
       const allScores = allAnswerSets.map(ans => calculateMajorityScore(ans));
       const currentUserScore = calculateMajorityScore(answers);
 
-      // 4. スコアの分布データを作成
-      const distributionBuckets = 20; // グラフの滑らかさ
+      const distributionBuckets = 20;
       const distributionData = Array(distributionBuckets).fill(0).map((_, i) => ({
         score: (i + 0.5) * (100 / distributionBuckets),
         users: 0
@@ -134,6 +166,17 @@ export default function App() {
       </div>
     );
   }
+  
+  // SurveyFormにhasSubmittedプロパティを渡す
+  if (view === 'form' && !hasSubmitted) {
+     return <SurveyForm 
+      questions={questions}
+      answers={answers}
+      handleOptionChange={handleOptionChange}
+      handleSubmit={handleSubmit}
+      isSubmitting={isSubmitting}
+    />;
+  }
 
   if (view === 'results') {
     return <ResultsView 
@@ -144,15 +187,6 @@ export default function App() {
     />;
   }
 
-  if (view === 'submitted') {
-    return <SubmittedView showResults={showResults} />;
-  }
-
-  return <SurveyForm 
-    questions={questions}
-    answers={answers}
-    handleOptionChange={handleOptionChange}
-    handleSubmit={handleSubmit}
-    isSubmitting={isSubmitting}
-  />;
+  // submitted or form (when hasSubmitted is true)
+  return <SubmittedView showResults={showResults} />;
 }
