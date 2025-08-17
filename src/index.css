@@ -13,6 +13,13 @@
   --accent-color: #8b5cf6; /* text-violet-500 */
 }
 
+/* --- ▼▼▼ここから変更▼▼▼ --- */
+html {
+  scroll-behavior: smooth;
+}
+/* --- ▲▲▲ここまで変更▲▲▲ --- */
+
+
 /* 全体の背景とフォント設定 */
 body {
   background-color: var(--bg-color);

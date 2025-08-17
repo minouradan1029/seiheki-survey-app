@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 // firebase.jsのパスはプロジェクトの構成に合わせて調整してください
 import { db, authStateListener } from '../firebase.js'; 
 import { collection, getDocs, query, setDoc, doc, getDoc } from "firebase/firestore";
@@ -18,19 +18,11 @@ const LoadingView = ({ text }) => (
 );
 
 // alert()の代わりにエラーを画面に表示するコンポーネント
-const ErrorView = ({ message, onRetry }) => (
+const ErrorView = ({ message }) => (
   <div className="min-h-screen flex flex-col items-center justify-center text-center p-4">
     <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative max-w-md">
       <strong className="font-bold">おっと！</strong>
       <span className="block sm:inline ml-2">{message}</span>
-      {onRetry && (
-        <button
-          onClick={onRetry}
-          className="mt-4 bg-red-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-600 transition-colors"
-        >
-          もう一度試す
-        </button>
-      )}
     </div>
   </div>
 );
@@ -39,62 +31,73 @@ const ErrorView = ({ message, onRetry }) => (
 
 export default function App() {
   const [questions, setQuestions] = useState([]);
-  const [answers, setAnswers] = useState({});
-  const [view, setView] = useState('form'); // 'form', 'submitted', 'results'
-  const [results, setResults] = useState(null);
   const [user, setUser] = useState(null);
+  const [answers, setAnswers] = useState({}); // 現在のユーザーの回答
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [results, setResults] = useState(null); // 表示用の結果データ
+  const [view, setView] = useState('loading'); // 'loading', 'form', 'submitted', 'results', 'error'
   
-  // ローディングとエラーの状態をまとめて管理
   const [appState, setAppState] = useState({
-    isLoading: true,
     isSubmitting: false,
     isResultsLoading: false,
     error: null,
   });
 
-  // public/questions.jsonから質問を読み込む
+  // 質問リストの読み込み (変更なし)
   useEffect(() => {
     fetch('/questions.json')
       .then(response => {
         if (!response.ok) throw new Error("質問リストが見つかりませんでした。");
         return response.json();
       })
-      .then(data => {
-        setQuestions(data);
-      })
+      .then(data => setQuestions(data))
       .catch(error => {
         console.error('質問データの読み込みに失敗しました:', error);
-        setAppState(s => ({ ...s, error: "質問データの読み込みに失敗しました。ページを再読み込みしてください。" }));
+        setAppState(s => ({ ...s, error: "質問データの読み込みに失敗しました。" }));
+        setView('error');
       });
   }, []);
 
-  // 認証状態を監視し、過去の回答があるか確認
+  // ★★★ 変更点: アプリのモードをURLに応じて決定 ★★★
   useEffect(() => {
-    const unsubscribe = authStateListener(async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        try {
-          const docRef = doc(db, "answers", currentUser.uid);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setHasSubmitted(true);
-            setAnswers(docSnap.data().answers);
-            setView('submitted');
+    const urlParams = new URLSearchParams(window.location.search);
+    const resultId = urlParams.get('resultId');
+
+    if (resultId) {
+      // --- 共有結果表示モード ---
+      // 閲覧者が誰であるかを確認するために認証状態を監視
+      authStateListener(currentUser => setUser(currentUser));
+      // 指定されたIDの結果を読み込む
+      loadResults(resultId);
+    } else {
+      // --- 通常の診断モード ---
+      const unsubscribe = authStateListener(async (currentUser) => {
+        if (currentUser) {
+          setUser(currentUser);
+          try {
+            const docRef = doc(db, "answers", currentUser.uid);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              setAnswers(docSnap.data().answers);
+              setHasSubmitted(true);
+              setView('submitted');
+            } else {
+              setHasSubmitted(false);
+              setView('form');
+            }
+          } catch (err) {
+            console.error("過去の回答の確認中にエラー:", err);
+            setAppState(s => ({ ...s, error: "過去の回答を確認できませんでした。" }));
+            setView('error');
           }
-        } catch (err) {
-          console.error("過去の回答の確認中にエラー:", err);
-          setAppState(s => ({ ...s, error: "過去の回答を確認できませんでした。接続を確認してください。" }));
+        } else {
+          setAppState(s => ({ ...s, error: "認証に失敗しました。ページを再読み込みしてください。" }));
+          setView('error');
         }
-      } else {
-        setUser(null);
-        setAppState(s => ({ ...s, error: "認証に失敗しました。もう一度ページを読み込んでください。" }));
-      }
-      // 認証チェックが完了したら、初期ローディング状態を解除
-      setAppState(s => ({ ...s, isLoading: false }));
-    });
-    return () => unsubscribe(); // コンポーネントのアンマウント時に監視を解除
-  }, []);
+      });
+      return () => unsubscribe();
+    }
+  }, []); // このuseEffectは初回読み込み時に一度だけ実行されます
 
   const handleOptionChange = (questionId, option) => {
     setAnswers(prev => ({ ...prev, [questionId]: option }));
@@ -111,24 +114,38 @@ export default function App() {
       setView('submitted');
     } catch (e) {
       console.error("データベースへの保存中にエラーが発生しました: ", e);
-      setAppState(s => ({ ...s, error: "回答を送信できませんでした。時間をおいて再試行してください。" }));
+      setAppState(s => ({ ...s, error: "回答を送信できませんでした。" }));
     } finally {
       setAppState(s => ({ ...s, isSubmitting: false }));
     }
   };
 
-  const showResults = async () => {
-    setView('results');
-    if (results) return; // 結果が既にあれば再取得しない
+  // ★★★ 変更点: どのユーザーの結果でも読み込めるように汎用化 ★★★
+  const loadResults = useCallback(async (userId) => {
+    if (!userId) {
+      setAppState(s => ({ ...s, error: "ユーザーIDが指定されていません。" }));
+      setView('error');
+      return;
+    }
 
+    setView('results');
     setAppState(s => ({ ...s, isResultsLoading: true, error: null }));
+
     try {
-      const q = query(collection(db, "answers"));
-      const querySnapshot = await getDocs(q);
-      
+      // 全員の回答を統計データのために取得
+      const allAnswersQuery = query(collection(db, "answers"));
+      const querySnapshot = await getDocs(allAnswersQuery);
       const allAnswerSets = querySnapshot.docs.map(doc => doc.data().answers);
 
-      // --- 結果の計算ロジック (元々のロジックを維持) ---
+      // 特定のユーザーの回答を取得
+      const targetUserAnswersRef = doc(db, "answers", userId);
+      const targetUserAnswersSnap = await getDoc(targetUserAnswersRef);
+      if (!targetUserAnswersSnap.exists()) {
+        throw new Error("指定された診断結果が見つかりませんでした。");
+      }
+      const targetUserAnswers = targetUserAnswersSnap.data().answers;
+
+      // --- 結果の計算ロジック (変更なし) ---
       const resultsSummary = {};
       allAnswerSets.forEach(singleAnswerSet => {
         for (const questionId in singleAnswerSet) {
@@ -155,7 +172,7 @@ export default function App() {
       };
 
       const allScores = allAnswerSets.map(ans => calculateMajorityScore(ans));
-      const currentUserScore = calculateMajorityScore(answers);
+      const targetUserScore = calculateMajorityScore(targetUserAnswers);
       const distributionBuckets = 20;
       const distributionData = Array(distributionBuckets).fill(0).map((_, i) => ({
         score: (i + 0.5) * (100 / distributionBuckets),
@@ -176,53 +193,46 @@ export default function App() {
         summary: resultsSummary,
         total: querySnapshot.size,
         distribution: finalDistributionData,
-        userScore: currentUserScore,
+        userScore: targetUserScore,
+        displayedAnswers: targetUserAnswers,
+        displayedUserId: userId,
       });
     } catch (e) {
       console.error("結果の取得中にエラーが発生しました: ", e);
-      setAppState(s => ({ ...s, error: "結果の取得に失敗しました。しばらくしてからもう一度お試しください。" }));
+      setAppState(s => ({ ...s, error: e.message || "結果の取得に失敗しました。" }));
     } finally {
       setAppState(s => ({ ...s, isResultsLoading: false }));
     }
-  };
+  }, []);
 
+  // ★★★ 変更点: トップページに戻って診断をやり直すように変更 ★★★
   const handleReset = () => {
-    setAnswers({});
-    setHasSubmitted(false);
-    setResults(null);
-    setView('form');
-    setAppState(s => ({ ...s, error: null }));
+    window.location.href = window.location.origin;
   };
-  
+
   // --- 表示ロジック ---
-
-  if (appState.isLoading || questions.length === 0) {
-    return <LoadingView text="診断の準備をしています..." />;
-  }
-
-  if (appState.error) {
-    return <ErrorView message={appState.error} />;
-  }
-  
-  if (!user) {
-     return <ErrorView message="ユーザー情報の取得に失敗しました。ページを再読み込みしてください。" />;
-  }
-
-  // --- 表示する画面の切り替え ---
   const renderView = () => {
+    if (view === 'loading' || (view === 'form' && questions.length === 0)) {
+      return <LoadingView text="診断の準備をしています..." />;
+    }
+    if (appState.error) {
+      return <ErrorView message={appState.error} />;
+    }
+
     switch (view) {
       case 'results':
         return <ResultsView 
           results={results} 
           isResultsLoading={appState.isResultsLoading}
           questions={questions}
-          answers={answers}
+          answers={results?.displayedAnswers || {}} // resultsオブジェクト内の回答を使用
           handleReset={handleReset}
+          currentUserId={user?.uid} // 現在のユーザーIDを渡す
+          displayedUserId={results?.displayedUserId} // 表示されている結果のユーザーIDを渡す
         />;
       case 'submitted':
-        return <SubmittedView showResults={showResults} />;
+        return <SubmittedView showResults={() => loadResults(user.uid)} />;
       case 'form':
-      default:
         return <SurveyForm 
           questions={questions}
           answers={answers}
@@ -231,12 +241,10 @@ export default function App() {
           isSubmitting={appState.isSubmitting}
           submissionError={appState.error}
         />;
+      default:
+        return <ErrorView message={appState.error || "予期せぬエラーが発生しました。"} />;
     }
   };
 
-  return (
-    <main>
-      {renderView()}
-    </main>
-  );
+  return <main>{renderView()}</main>;
 }
