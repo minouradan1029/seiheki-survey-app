@@ -7,7 +7,8 @@ const CheckIcon = () => (
   </svg>
 );
 
-export default function SubmittedView({ showResults }) {
+// ★★★ 変更点: handleResetを受け取るように修正 ★★★
+export default function SubmittedView({ showResults, handleReset }) {
   return (
     <div className="min-h-screen font-sans flex items-center justify-center p-4 selection:bg-orange-500/30">
       <div className="bg-white/80 backdrop-blur-xl border border-orange-200/80 rounded-3xl shadow-2xl p-8 m-4 w-full max-w-lg text-center flex flex-col items-center fade-in">
@@ -19,12 +20,21 @@ export default function SubmittedView({ showResults }) {
           回答をしっかり受け取りました。<br/>
           あなたの一面が、もうすぐ明らかに...！
         </p>
-        <button
-          onClick={showResults}
-          className="w-full max-w-xs bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-orange-300/50 pulse-on-ready"
-        >
-          みんなの結果と比べてみる
-        </button>
+        <div className="w-full max-w-xs space-y-4">
+          <button
+            onClick={showResults}
+            className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-orange-300/50 pulse-on-ready"
+          >
+            みんなの結果と比べてみる
+          </button>
+          {/* ★★★ 追加: 「もう一度診断する」ボタンを追加 ★★★ */}
+          <button
+            onClick={handleReset}
+            className="w-full bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-violet-300/50"
+          >
+            もう一度診断する
+          </button>
+        </div>
       </div>
     </div>
   );

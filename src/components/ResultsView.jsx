@@ -48,7 +48,6 @@ export default function ResultsView({
 
   const userScorePercentage = Math.round(results.userScore);
   
-  // ★★★ 変更点: シェア文言のフォーマットとハッシュタグを修正 ★★★
   const getShareText = (score) => {
     let comment;
     if (score <= 10) { comment = `完全に少数派の嗜好。研究者に標本として狙われそうなレベルです...同族を探してます。`; }
@@ -61,7 +60,6 @@ export default function ResultsView({
     else if (score <= 80) { comment = `王道を歩む安定派。みんなが頷く、間違いのない選択眼です。`; }
     else if (score <= 90) { comment = `定番中の定番。辞書の「一般的」の項目に載りそうなレベルです。`; }
     else { comment = `もはやテンプレート級のメジャー嗜好。これ以上ないほどの王道を征く。`; }
-    // 1行目: スコア, 2行目: コメント, 3行目: (空行), 4行目: ハッシュタグ
     return `私の性癖メジャー度は【${score}%】でした！\n${comment}\n\n#性癖まるわかり診断 #私の性癖 #性癖`;
   };
 
@@ -99,6 +97,16 @@ export default function ResultsView({
           </p>
         </header>
 
+        {/* ★★★ 変更点: ページ上部のリセットボタンを追加 ★★★ */}
+        <div className="text-center mb-12">
+            <button
+              onClick={handleReset}
+              className="w-full max-w-xs bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-violet-300/50"
+            >
+              {isSharedView ? '自分も診断してみる' : 'もう一度診断する'}
+            </button>
+        </div>
+
         <section className="mb-12 p-6 bg-rose-50/70 rounded-2xl border border-rose-200 fade-in" style={{ animationDelay: '100ms' }}>
           <h2 className="text-2xl font-bold text-center mb-2 text-slate-800">あなたの性癖メジャー度</h2>
           <p className="text-center text-gray-600 mb-6 leading-relaxed">
@@ -133,7 +141,6 @@ export default function ResultsView({
 
         <section className="text-center mb-12 fade-in" style={{ animationDelay: '200ms' }}>
             <h3 className="text-lg font-bold text-slate-700 mb-2">結果をシェアして友達と比べよう！</h3>
-            {/* ★★★ 変更点: 表示されるコメントも新しいフォーマットに合わせる ★★★ */}
             <p className="text-gray-600 mb-6">{getShareText(userScorePercentage).split('\n')[1]}</p>
             
             <div className="flex justify-center items-center flex-wrap gap-4">

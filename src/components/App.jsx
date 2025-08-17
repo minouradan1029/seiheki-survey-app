@@ -17,7 +17,7 @@ const LoadingView = ({ text }) => (
   </div>
 );
 
-// alert()の代わりにエラーを画面に表示するコンポーネント
+// alert()の代わりにエラーを画面に表示するコンポーント
 const ErrorView = ({ message }) => (
   <div className="min-h-screen flex flex-col items-center justify-center text-center p-4">
     <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative max-w-md">
@@ -43,7 +43,16 @@ export default function App() {
     error: null,
   });
 
-  // 質問リストの読み込み (変更なし)
+  // viewが変更されたら常にトップにスクロール
+  useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  }, [view]);
+
+
+  // 質問リストの読み込み
   useEffect(() => {
     fetch('/questions.json')
       .then(response => {
@@ -58,16 +67,14 @@ export default function App() {
       });
   }, []);
 
-  // ★★★ 変更点: アプリのモードをURLに応じて決定 ★★★
+  // アプリのモードをURLに応じて決定
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const resultId = urlParams.get('resultId');
 
     if (resultId) {
       // --- 共有結果表示モード ---
-      // 閲覧者が誰であるかを確認するために認証状態を監視
       authStateListener(currentUser => setUser(currentUser));
-      // 指定されたIDの結果を読み込む
       loadResults(resultId);
     } else {
       // --- 通常の診断モード ---
@@ -109,7 +116,12 @@ export default function App() {
 
     setAppState(s => ({ ...s, isSubmitting: true, error: null }));
     try {
-      await setDoc(doc(db, "answers", user.uid), { answers });
+      // ★★★ 変更点: Firestoreに保存するデータにタイムスタンプを追加 ★★★
+      // これにより、再診断時に新しいデータとして上書きされることが保証されます。
+      await setDoc(doc(db, "answers", user.uid), { 
+        answers,
+        submittedAt: new Date() // 保存日時を追加
+      });
       setHasSubmitted(true);
       setView('submitted');
     } catch (e) {
@@ -120,7 +132,7 @@ export default function App() {
     }
   };
 
-  // ★★★ 変更点: どのユーザーの結果でも読み込めるように汎用化 ★★★
+  // どのユーザーの結果でも読み込めるように汎用化
   const loadResults = useCallback(async (userId) => {
     if (!userId) {
       setAppState(s => ({ ...s, error: "ユーザーIDが指定されていません。" }));
@@ -145,7 +157,7 @@ export default function App() {
       }
       const targetUserAnswers = targetUserAnswersSnap.data().answers;
 
-      // --- 結果の計算ロジック (変更なし) ---
+      // --- 結果の計算ロジック ---
       const resultsSummary = {};
       allAnswerSets.forEach(singleAnswerSet => {
         for (const questionId in singleAnswerSet) {
@@ -205,9 +217,18 @@ export default function App() {
     }
   }, []);
 
-  // ★★★ 変更点: トップページに戻って診断をやり直すように変更 ★★★
+  // ★★★ 変更点: handleReset関数を修正 ★★★
+  // トップページに戻って診断をやり直す
   const handleReset = () => {
-    window.location.href = window.location.origin;
+    // ページをリロードする代わりに、Stateをリセットする
+    setAnswers({});
+    setHasSubmitted(false);
+    setResults(null);
+    setView('form'); // フォーム画面に切り替える
+    setAppState(s => ({ ...s, error: null })); // エラー表示もクリア
+    
+    // URLからクエリパラメータ(?resultId=...)を削除し、通常の診断モードに戻す
+    window.history.pushState({}, '', window.location.pathname);
   };
 
   // --- 表示ロジック ---
@@ -225,13 +246,17 @@ export default function App() {
           results={results} 
           isResultsLoading={appState.isResultsLoading}
           questions={questions}
-          answers={results?.displayedAnswers || {}} // resultsオブジェクト内の回答を使用
+          answers={results?.displayedAnswers || {}}
           handleReset={handleReset}
-          currentUserId={user?.uid} // 現在のユーザーIDを渡す
-          displayedUserId={results?.displayedUserId} // 表示されている結果のユーザーIDを渡す
+          currentUserId={user?.uid}
+          displayedUserId={results?.displayedUserId}
         />;
       case 'submitted':
-        return <SubmittedView showResults={() => loadResults(user.uid)} />;
+        // ★★★ 変更点: SubmittedViewにもリセット機能を追加 ★★★
+        return <SubmittedView 
+                 showResults={() => loadResults(user.uid)} 
+                 handleReset={handleReset} 
+               />;
       case 'form':
         return <SurveyForm 
           questions={questions}
