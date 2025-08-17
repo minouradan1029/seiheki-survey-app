@@ -3,19 +3,17 @@ import { initializeApp } from "firebase/app";
 // Firestore を利用するために getFirestore をインポートします
 import { getFirestore } from "firebase/firestore";
 
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyAHihmC6JR6VT-g8UQsMmnA4g_H18sgm3s",
-  authDomain: "seiheki-survey-app.firebaseapp.com",
-  projectId: "seiheki-survey-app",
-  storageBucket: "seiheki-survey-app.firebasestorage.app",
-  messagingSenderId: "835556371068",
-  appId: "1:835556371068:web:929ab22b0609f93dc377f9",
-  measurementId: "G-Q0CHMK1PR4"
+  // .env.localファイルから環境変数を読み込むように変更
+  apiKey: import.meta.env.VITE_API_KEY,
+  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_APP_ID,
+  measurementId: import.meta.env.VITE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
